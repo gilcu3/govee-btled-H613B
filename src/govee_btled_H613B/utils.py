@@ -13,7 +13,7 @@ def color2rgb(color):
 async def discover():
     """Discover Bluetooth LE devices."""
     devices = await BleakScanner.discover()
-    return [device for device in devices if device.name.lower().startswith("GBK_H613B_")]
+    return [device for device in devices if device.name.startswith("GBK_H613B_")]
 
 def create_status_callback(future: asyncio.Future):
     def callback(sender: int, data: bytearray):
