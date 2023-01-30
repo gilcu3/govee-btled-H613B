@@ -29,7 +29,7 @@ from .const import (
 
 from .exceptions import ConnectionTimeout,CharacteristicMissingError
 from .utils import create_status_callback,color2rgb,discover
-from .models import LEDBLEState
+from .models import GoveeState
 
 BLEAK_BACKOFF_TIME = 0.25
 
@@ -51,12 +51,12 @@ class GoveeInstance:
 
         
         self._operation_lock = asyncio.Lock()
-        self._state = LEDBLEState()
+        self._state = GoveeState()
         self._connect_lock: asyncio.Lock = asyncio.Lock()
         self._disconnect_timer = None
         self._expected_disconnect = False
         self.loop = asyncio.get_running_loop()
-        self._callbacks: list[Callable[[LEDBLEState], None]] = []
+        self._callbacks: list[Callable[[GoveeState], None]] = []
     
     @property
     def address(self) -> str:
@@ -74,7 +74,7 @@ class GoveeInstance:
         return self._ble_device.rssi
 
     @property
-    def state(self) -> LEDBLEState:
+    def state(self) -> GoveeState:
         """Return the state."""
         return self._state
 
@@ -228,7 +228,11 @@ class GoveeInstance:
         r, g, b = rgb
         # await self._write([0x56, r, g, b, 0x00, 0xF0, 0xAA])
         await self._send(LedMsgType.COMMAND, LedCommand.COLOR, [LedMode.MANUAL, r, g, b])
-        self._rgb_color = (r, g, b)
+        self._state = replace(
+            self._state,
+            rgb= (r, g, b)
+        )
+        self._fire_callbacks()
     
     # although the device accepts values in the range [0, 255], it actually only does
     # anything useful with values from [1, 100], 
@@ -329,11 +333,12 @@ class GoveeInstance:
                 "%s: Disconnected from device; RSSI: %s", self.name, self.rssi
             )
             return
-        _LOGGER.warning(
-            "%s: Device unexpectedly disconnected; RSSI: %s",
-            self.name,
-            self.rssi,
-        )
+        else:
+            _LOGGER.debug(
+                "%s: Device unexpectedly disconnected; RSSI: %s",
+                self.name,
+                self.rssi,
+            )
 
     def _disconnect(self) -> None:
         """Disconnect from device."""
@@ -469,7 +474,7 @@ class GoveeInstance:
             callback(self._state)
 
     def register_callback(
-        self, callback: Callable[[LEDBLEState], None]
+        self, callback: Callable[[GoveeState], None]
     ) -> Callable[[], None]:
         """Register a callback to be called when the state changes."""
 
