@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class LEDBLEState:
+class GoveeState:
 
     power: bool = False
     rgb: tuple[int, int, int] = (0, 0, 0)
