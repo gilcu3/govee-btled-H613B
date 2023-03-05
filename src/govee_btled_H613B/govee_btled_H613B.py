@@ -44,8 +44,6 @@ class GoveeInstance:
     def __init__(self, device: BLEDevice) -> None:
         self._ble_device = device
         self._client = BleakClientWithServiceCache(device)
-        self._rgb_color = None
-        self._brightness = None
         self._write_uuid = None
         self._read_uuid = None
 
@@ -246,8 +244,8 @@ class GoveeInstance:
         self._state = replace(self._state, brightness=intensity)
         self._fire_callbacks()
     
-    async def set_white(self, intensity: int):
-        _LOGGER.debug("%s: Set white: %s", self.name, intensity)
+    async def set_white(self, white_temperature: int):
+        _LOGGER.debug("%s: Set white: %s", self.name, white_temperature)
         """
         Sets the LED's color in white-mode.
 
@@ -255,18 +253,18 @@ class GoveeInstance:
         This method uses the hardcoded RGB values of whites, directly taken from
         the mechanism used in Govee's app.
         """
-        if not 0 <= intensity <= 255:
-            raise ValueError(f'White value out of range: {value}')
-        value = (intensity) / 255 # in [0.0, 1.0]
+        if not 0 <= white_temperature <= 255:
+            raise ValueError(f'White Temperature value out of range: {value}')
+        value = (white_temperature) / 255 # in [0.0, 1.0]
         index = round(value * (len(SHADES_OF_WHITE)-1))
         white = Color(SHADES_OF_WHITE[index])
         
         # Set the color to white (although ignored) and the boolean flag to True
-        await self._send(LedMsgType.COMMAND, LedCommand.COLOR, [LedMode.MANUAL, 0xff, 0xff, 0xff, 0x01, *color2rgb(white)])
+        await self._send(LedMsgType.COMMAND, LedCommand.COLOR, [LedMode.MANUAL, 0xff, 0xff, 0xff, 0x00, 0x01, *color2rgb(white)])
         self._state = replace(
             self._state,
-            rgb=(0xff, 0xff, 0xff),
-            brightness=intensity
+            w=white_temperature, 
+            rgb=(0xff, 0xff, 0xff)
         )
         self._fire_callbacks()
 
@@ -302,8 +300,9 @@ class GoveeInstance:
                 if data[2] != 0x0d:
                     _LOGGER.warn('Unknown byte 3 seen in COLOR info packet', data[2])
                 else:
-                    self._state = replace(self._state, rgb=(data[3], data[4], data[5]))
-                    # for now not taking care of white color parameter nor updating w_index
+                    tmpw = round(SHADES_OF_WHITE.index('#%.2x%.2x%.2x' % (data[8], data[9], data[10])) / (len(SHADES_OF_WHITE)-1) * 255) if (data[8], data[9], data[10]) != (0, 0, 0) else 0
+                    self._state = replace(self._state, rgb=(data[3], data[4], data[5]), w=tmpw)
+
             elif data[1] == LedCommand.BRIGHTNESS:
                 self._state = replace(self._state, brightness=data[2])
             
