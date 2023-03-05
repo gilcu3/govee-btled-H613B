@@ -22,9 +22,10 @@ from bleak_retry_connector import (
 )
 
 from .const import (
-    SHADES_OF_WHITE,
+    SHADES_OF_WHITE,KELVIN2COLOR,
     READ_CHARACTERISTIC_UUIDS,WRITE_CHARACTERISTIC_UUIDS,
-    LedCommand,LedMode,LedMsgType
+    LedCommand,LedMode,LedMsgType,
+    COLOR_TEMP_KELVIN_MIN,COLOR_TEMP_KELVIN_MAX
 )
 
 from .exceptions import ConnectionTimeout,CharacteristicMissingError
@@ -82,8 +83,8 @@ class GoveeInstance:
         return self._state.rgb
 
     @property
-    def w(self) -> int:
-        return self._state.w
+    def color_temp(self) -> int:
+        return self._state.color_temp
     
 
     @property
@@ -244,26 +245,22 @@ class GoveeInstance:
         self._state = replace(self._state, brightness=intensity)
         self._fire_callbacks()
     
-    async def set_white(self, white_temperature: int):
-        _LOGGER.debug("%s: Set white: %s", self.name, white_temperature)
-        """
-        Sets the LED's color in white-mode.
+    async def set_color_temp(self, color_temp: int):
+        _LOGGER.debug("%s: Color Temperature: %s", self.name, color_temp)
 
-        White mode seems to enable a different set of LEDs within the bulb.
-        This method uses the hardcoded RGB values of whites, directly taken from
-        the mechanism used in Govee's app.
-        """
-        if not 0 <= white_temperature <= 255:
-            raise ValueError(f'White Temperature value out of range: {value}')
-        value = (white_temperature) / 255 # in [0.0, 1.0]
-        index = round(value * (len(SHADES_OF_WHITE)-1))
-        white = Color(SHADES_OF_WHITE[index])
+        if not COLOR_TEMP_KELVIN_MIN <= color_temp <= COLOR_TEMP_KELVIN_MAX:
+            raise ValueError(f'Color Temperature value out of range: {value}')
+        color_temp = round(color_temp / 100) * 100
+        
+        white = KELVIN2COLOR[color_temp]
+
+        ct = [color_temp // 256, color_temp % 256]
         
         # Set the color to white (although ignored) and the boolean flag to True
-        await self._send(LedMsgType.COMMAND, LedCommand.COLOR, [LedMode.MANUAL, 0xff, 0xff, 0xff, 0x00, 0x01, *color2rgb(white)])
+        await self._send(LedMsgType.COMMAND, LedCommand.COLOR, [LedMode.MANUAL, 0xff, 0xff, 0xff, ct[0], ct[1], *color2rgb(white)])
         self._state = replace(
             self._state,
-            w=white_temperature, 
+            color_temp=color_temp, 
             rgb=(0xff, 0xff, 0xff)
         )
         self._fire_callbacks()
@@ -300,8 +297,7 @@ class GoveeInstance:
                 if data[2] != 0x0d:
                     _LOGGER.warn('Unknown byte 3 seen in COLOR info packet', data[2])
                 else:
-                    tmpw = round(SHADES_OF_WHITE.index('#%.2x%.2x%.2x' % (data[8], data[9], data[10])) / (len(SHADES_OF_WHITE)-1) * 255) if (data[8], data[9], data[10]) != (0, 0, 0) else 0
-                    self._state = replace(self._state, rgb=(data[3], data[4], data[5]), w=tmpw)
+                    self._state = replace(self._state, rgb=(data[3], data[4], data[5]), color_temp=data[6] * 256 + data[7])
 
             elif data[1] == LedCommand.BRIGHTNESS:
                 self._state = replace(self._state, brightness=data[2])

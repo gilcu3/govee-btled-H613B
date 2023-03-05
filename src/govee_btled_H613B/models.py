@@ -8,5 +8,5 @@ class GoveeState:
 
     power: bool = False
     rgb: tuple[int, int, int] = (0, 0, 0)
-    w: int = 0
+    color_temp: int = 0
     brightness: int = 0
