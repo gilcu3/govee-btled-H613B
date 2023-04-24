@@ -42,11 +42,12 @@ DEFAULT_ATTEMPTS = 3
 
 
 class GoveeInstance:
-    def __init__(self, device: BLEDevice) -> None:
-        self._ble_device = device
-        self._client = BleakClientWithServiceCache(device)
+    def __init__(self, ble_device: BLEDevice, advertisement_data: AdvertisementData | None = None) -> None:
+        self._ble_device = ble_device
+        self._client = BleakClientWithServiceCache(ble_device)
         self._write_uuid = None
         self._read_uuid = None
+        self._advertisement_data = advertisement_data
 
         
         self._operation_lock = asyncio.Lock()
@@ -57,6 +58,14 @@ class GoveeInstance:
         self.loop = asyncio.get_running_loop()
         self._callbacks: list[Callable[[GoveeState], None]] = []
     
+
+    def set_ble_device_and_advertisement_data(
+        self, ble_device: BLEDevice, advertisement_data: AdvertisementData
+    ) -> None:
+        """Set the ble device."""
+        self._ble_device = ble_device
+        self._advertisement_data = advertisement_data
+
     @property
     def address(self) -> str:
         """Return the address."""
@@ -70,7 +79,9 @@ class GoveeInstance:
     @property
     def rssi(self) -> int | None:
         """Get the rssi of the device."""
-        return self._ble_device.rssi
+        if self._advertisement_data:
+            return self._advertisement_data.rssi
+        return None
 
     @property
     def state(self) -> GoveeState:

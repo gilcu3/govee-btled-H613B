@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "govee-btled-H613B"
-version = "0.0.5"
+version = "0.0.6"
 description = "Control Govee LED BLE device H613B"
 authors = ["gilcu3 <gilcu3@github.com>"]
 license = "Apache Software License 2.0"
